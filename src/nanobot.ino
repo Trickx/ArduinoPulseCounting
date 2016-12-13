@@ -52,7 +52,7 @@ typedef struct {
 } PayloadTX;
 PayloadTX measurementData;     // Measurement data
 //----------------------------nanoBot Settings----------------------------------
-byte nodeID =                          5;  // nanoBot node ID
+byte nodeID =                          9;  // nanoBot node ID
 const int firmware_version =          90;  // firmware version x100 (100 = V1.00)
 const unsigned long BAUD_RATE =    38400;  // Baud rate serial interface
 const int TIME_BETWEEN_READINGS =   5000;  // Time between readings (ms)
@@ -72,8 +72,10 @@ unsigned long interval_end =           0; // Record millis time of interval end 
 volatile byte pulseCount =             0; // interval pulse counter
 unsigned long now =                    0; // time stamp
 unsigned long pulsetime =              0; // Record time of interrupt pulse
-static unsigned long value;              // Used to store serial input
-const char helpText[] PROGMEM =          // Available Serial Commands
+static unsigned long long value;          // Used to store serial input
+char buf[10];                             // Used to print long long variables
+byte binarray[sizeof(measurementData)];   // Used to byte print data
+const char helpText[] PROGMEM =           // Available Serial Commands
 "\n"
 "Available commands:\n"
 "  <nn>i      - set node IDs (standard node ids are 1..30)\n"
@@ -114,26 +116,21 @@ void loop()
       cli(); // Disable interrupt just in case pulse comes in while we are updating the count
       measurementData.currentPulseCount = pulseCount;
       measurementData.currentIntervalTime = interval_end-interval_start;
-      measurementData.currentPower = int(pulseCount * 36000000.0 /
+      measurementData.currentPower = int(pulseCount * 36000000000.0 /
               measurementData.currentIntervalTime / ppwh);  // Calculate power
       measurementData.accPulseCount += pulseCount;
       measurementData.totalPulseCount += pulseCount;
-      measurementData.totalEnergy += pulseCount / ppwh / 1000; //TODO: BEST version?
-      //TODO: kepp total pulsec count in sync with totalenergy in order to get best accuracy?
-
-      //measurementData.totalEnergy += ;
+      measurementData.totalEnergy = measurementData.totalPulseCount / ppwh / 1000;
       interval_start = interval_end;
       pulseCount = 0;
       sei(); // Re-enable interrupts
-
-      if (debugEnable){
-        Serial.print(F("Pulses: "));
-        Serial.println(measurementData.currentPulseCount);
-        Serial.print(F("Times: "));
-        Serial.println(measurementData.currentIntervalTime);
-        Serial.print(F("Power: "));
-        Serial.println(measurementData.currentPower/10.0);
-      }
+    }else{ // if the ISR has NOT counted some pulses, reset current values
+      cli(); // Disable interrupt just in case pulse comes in while we are updating the count
+      measurementData.currentPower = 0;
+      measurementData.currentPulseCount = 0;
+      measurementData.currentIntervalTime = 0;
+      interval_start = interval_end;
+      sei(); // Re-enable interrupts
     }
 
     send_serial(); // Send emonPi data to Pi serial using struct packet structure

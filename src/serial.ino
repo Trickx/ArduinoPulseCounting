@@ -3,8 +3,12 @@
 //------------------------------------------------------------------------------
 void send_serial()
 {
-  byte binarray[sizeof(measurementData)];
+  //byte binarray[sizeof(measurementData)];
   memcpy(binarray, &measurementData, sizeof(measurementData));
+
+  if (debugEnable){
+    serializeDebug();
+  }
 
   Serial.print(F("OK "));
   Serial.print(nodeID);
@@ -35,14 +39,17 @@ static void handleInput (char c) {
           Serial.print(F("new node ID: ")); Serial.println(nodeID);
           break;
         }
+        break;
 
       case 's': // set total energy
         if (value){
           measurementData.totalEnergy = value;
-          Serial.print(F("set counter reading:  "));
-          Serial.println(measurementData.totalEnergy);
-          break;
+          measurementData.totalPulseCount = measurementData.totalEnergy * ppwh * 1000;
+          Serial.println(F("set counter reading:  "));
+          Serial.print(F("    ")); printTotalPulseCount();
+          Serial.print(F("    ")); printTotalEnergy();
         }
+        break;
 
       case 'r': // toggle auto-reset mode
         if (resetEnable){
@@ -59,7 +66,7 @@ static void handleInput (char c) {
         break;
 
       case 'd': // toggle serial debug
-        if (resetEnable){
+        if (debugEnable){
           Serial.print(F("serial debug disabled\n"));
           debugEnable = false;
         }else{
@@ -92,4 +99,69 @@ static void showString (PGM_P s) {
       Serial.print('\r');
     Serial.print(c);
   }
+}
+
+void serializeDebug() {
+  Serial.print(F("Power: "));
+  Serial.print(measurementData.currentPower/10.0);
+  Serial.print(F(" VA ["));
+  for (byte i = 0; i < 2; i++) {
+    Serial.print(F(" "));
+    Serial.print(binarray[i]);
+  }
+
+  Serial.print(F("] \nPulses: "));
+  Serial.print(measurementData.currentPulseCount);
+  Serial.print(F(" ["));
+  for (byte i = 2; i < 4; i++) {
+    Serial.print(F(" "));
+    Serial.print(binarray[i]);
+  }
+
+  Serial.print(F("]\nTime: "));
+  Serial.print(measurementData.currentIntervalTime/1000000.0);
+  Serial.print(F(" s ["));
+  for (byte i = 4; i < 8; i++) {
+    Serial.print(F(" "));
+    Serial.print(binarray[i]);
+  }
+
+  Serial.print(F("]\naccPulseCount: "));
+  Serial.print(measurementData.accPulseCount);
+  Serial.print(F(" ["));
+  for (byte i = 8; i < 12; i++) {
+    Serial.print(F(" "));
+    Serial.print(binarray[i]);
+  }
+  Serial.println(F("]"));
+
+  printTotalPulseCount();
+  printTotalEnergy();
+}
+
+void printTotalPulseCount() {
+  Serial.print(F("totalPulseCount: "));
+  if(measurementData.totalPulseCount > 0xFFFFFFFFLL) {
+    sprintf(buf, "%lu%08lud", (unsigned long)(measurementData.totalPulseCount>>32), (unsigned long)(measurementData.totalPulseCount&0xFFFFFFFFULL));
+  } else {
+    sprintf(buf, "%ld", (unsigned long)measurementData.totalPulseCount);
+  }
+  Serial.print( buf );
+  Serial.print(F(" ["));
+  for (byte i = 12; i < 20; i++) {
+    Serial.print(F(" "));
+    Serial.print(binarray[i]);
+  }
+  Serial.println(F("]"));
+}
+
+void printTotalEnergy() {
+  Serial.print(F("totalEnergy: "));
+  Serial.print(measurementData.totalEnergy/10.0);
+  Serial.print(F(" kWh ["));
+  for (byte i = 20; i < 24; i++) {
+    Serial.print(F(" "));
+    Serial.print(binarray[i]);
+  }
+  Serial.println(F("]"));
 }
