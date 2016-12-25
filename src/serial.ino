@@ -43,8 +43,12 @@ static void handleInput (char c) {
 
       case 's': // set total energy
         if (value){
-          measurementData.totalEnergy = value;
-          measurementData.totalPulseCount = measurementData.totalEnergy * ppwh * 1000;
+          measurementData.totalEnergy = value; //[1/10 kWh | xxxxx.x kWh]
+          measurementData.totalPulseCount = measurementData.totalEnergy * ppwh * 100;
+
+          //byte binarray[sizeof(measurementData)];
+          memcpy(binarray, &measurementData, sizeof(measurementData));
+
           Serial.println(F("set counter reading:  "));
           Serial.print(F("    ")); printTotalPulseCount();
           Serial.print(F("    ")); printTotalEnergy();
@@ -53,12 +57,12 @@ static void handleInput (char c) {
 
       case 'r': // toggle auto-reset mode
         if (resetEnable){
-          Serial.print(F("auto-reset disabled\n"));
+          Serial.println(F("auto-reset disabled"));
           digitalWrite(DisableResetPin,HIGH);
           pinMode(DisableResetPin, OUTPUT);
           resetEnable = false;
         }else{
-          Serial.print(F("auto-reset enabled\n"));
+          Serial.println(F("auto-reset enabled"));
           digitalWrite(DisableResetPin,HIGH);
           pinMode(DisableResetPin, INPUT);
           resetEnable = true;
@@ -67,10 +71,10 @@ static void handleInput (char c) {
 
       case 'd': // toggle serial debug
         if (debugEnable){
-          Serial.print(F("serial debug disabled\n"));
+          Serial.println(F("serial debug disabled"));
           debugEnable = false;
         }else{
-          Serial.print(F("serial debug enabled\n"));
+          Serial.println(F("serial debug enabled"));
           debugEnable = true;
         }
         break;
@@ -110,7 +114,7 @@ void serializeDebug() {
     Serial.print(binarray[i]);
   }
 
-  Serial.print(F("] \nPulses: "));
+  Serial.print(F("]\r\nPulses: "));
   Serial.print(measurementData.currentPulseCount);
   Serial.print(F(" ["));
   for (byte i = 2; i < 4; i++) {
@@ -118,7 +122,7 @@ void serializeDebug() {
     Serial.print(binarray[i]);
   }
 
-  Serial.print(F("]\nTime: "));
+  Serial.print(F("]\r\nTime: "));
   Serial.print(measurementData.currentIntervalTime/1000000.0);
   Serial.print(F(" s ["));
   for (byte i = 4; i < 8; i++) {
@@ -126,27 +130,23 @@ void serializeDebug() {
     Serial.print(binarray[i]);
   }
 
-  Serial.print(F("]\naccPulseCount: "));
+  Serial.print(F("]\r\naccPulseCount: "));
   Serial.print(measurementData.accPulseCount);
   Serial.print(F(" ["));
   for (byte i = 8; i < 12; i++) {
     Serial.print(F(" "));
     Serial.print(binarray[i]);
   }
-  Serial.println(F("]"));
 
+  Serial.print(F("]\r\n"));
   printTotalPulseCount();
   printTotalEnergy();
 }
 
 void printTotalPulseCount() {
   Serial.print(F("totalPulseCount: "));
-  if(measurementData.totalPulseCount > 0xFFFFFFFFLL) {
-    sprintf(buf, "%lu%08lud", (unsigned long)(measurementData.totalPulseCount>>32), (unsigned long)(measurementData.totalPulseCount&0xFFFFFFFFULL));
-  } else {
-    sprintf(buf, "%ld", (unsigned long)measurementData.totalPulseCount);
-  }
-  Serial.print( buf );
+  PrintULL(measurementData.totalPulseCount);
+  //Serial.print( buf );
   Serial.print(F(" ["));
   for (byte i = 12; i < 20; i++) {
     Serial.print(F(" "));
@@ -164,4 +164,12 @@ void printTotalEnergy() {
     Serial.print(binarray[i]);
   }
   Serial.println(F("]"));
+}
+
+void PrintULL(unsigned long long num)
+{
+    int digit = num % 10;
+    if (num > 9) PrintULL(num / 10);
+    // Print the digit this level of recursion has decided on
+    Serial.print(digit);
 }

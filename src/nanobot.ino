@@ -109,7 +109,7 @@ void loop()
 
   if ((now - last_sample) > TIME_BETWEEN_READINGS)
   {
-    double_LED_flash(); // single flash of LED on local CT sample
+    double_LED_flash(); // double flash of LED indicating new data sample
 
     if (pulseCount) // if the ISR has counted some pulses, update the total count
     {
@@ -120,7 +120,7 @@ void loop()
               measurementData.currentIntervalTime / ppwh);  // Calculate power
       measurementData.accPulseCount += pulseCount;
       measurementData.totalPulseCount += pulseCount;
-      measurementData.totalEnergy = measurementData.totalPulseCount / ppwh / 1000;
+      measurementData.totalEnergy = measurementData.totalPulseCount / ppwh / 100; // [1/10 kWh]
       interval_start = interval_end;
       pulseCount = 0;
       sei(); // Re-enable interrupts
