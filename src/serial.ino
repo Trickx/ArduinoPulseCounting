@@ -3,7 +3,6 @@
 //------------------------------------------------------------------------------
 void send_serial()
 {
-  //byte binarray[sizeof(measurementData)];
   memcpy(binarray, &measurementData, sizeof(measurementData));
 
   if (debugEnable){
@@ -16,7 +15,7 @@ void send_serial()
     Serial.print(F(" "));
     Serial.print(binarray[i]);
   }
-  Serial.print(F(" (-0)"));
+  Serial.print(F(" (-0)")); // Used for RSSI value?
   Serial.println();
 
   delay(10);
@@ -41,14 +40,11 @@ static void handleInput (char c) {
         }
         break;
 
-      case 's': // set total energy
-        if (value){
-          measurementData.totalEnergy = value; //[1/10 kWh | xxxxx.x kWh]
-          measurementData.totalPulseCount = measurementData.totalEnergy * ppwh * 100;
-
-          //byte binarray[sizeof(measurementData)];
+      case 's': // set total energy and total pulse count
+        if (value){ // value is assumed to be in 1/100 kWh
+          measurementData.totalEnergy = value; //[1/100 kWh | xxxxx.xx kWh]
+          measurementData.totalPulseCount = measurementData.totalEnergy * ppwh * 10;
           memcpy(binarray, &measurementData, sizeof(measurementData));
-
           Serial.println(F("set counter reading:  "));
           Serial.print(F("    ")); printTotalPulseCount();
           Serial.print(F("    ")); printTotalEnergy();
@@ -86,6 +82,10 @@ static void handleInput (char c) {
       case 'f': // print firmware version
         showString(packetFormatText);
         break;
+
+        case 'p': // store persistent settings to  EEPROM
+          save_config();
+          break;
 
       default:
         showString(helpText);
@@ -145,10 +145,9 @@ void serializeDebug() {
 
 void printTotalPulseCount() {
   Serial.print(F("totalPulseCount: "));
-  PrintULL(measurementData.totalPulseCount);
-  //Serial.print( buf );
+  Serial.print(measurementData.totalPulseCount);
   Serial.print(F(" ["));
-  for (byte i = 12; i < 20; i++) {
+  for (byte i = 12; i < 16; i++) {
     Serial.print(F(" "));
     Serial.print(binarray[i]);
   }
@@ -157,16 +156,16 @@ void printTotalPulseCount() {
 
 void printTotalEnergy() {
   Serial.print(F("totalEnergy: "));
-  Serial.print(measurementData.totalEnergy/10.0);
+  Serial.print(measurementData.totalEnergy/100.0);
   Serial.print(F(" kWh ["));
-  for (byte i = 20; i < 24; i++) {
+  for (byte i = 16; i < 20; i++) {
     Serial.print(F(" "));
     Serial.print(binarray[i]);
   }
   Serial.println(F("]"));
 }
 
-void PrintULL(unsigned long long num)
+void PrintULL(unsigned long long num) // Unused leftover to print ULL type
 {
     int digit = num % 10;
     if (num > 9) PrintULL(num / 10);

@@ -36,10 +36,10 @@ const char packetFormatText[] PROGMEM =  // emonhub.conf node decoder
   "  firmware = nanobot.ino\n"
   "  hardware = arduino-nano\n"
   "    [[[rx]]]\n"
-  "      names = power,currentPulseCount,intervalTime,accPulseCount,totalPulseCount,totalEnergy\n"
-  "      datacodes = H, H, L, L, Q, L\n"
-  "      scales = 0.1,1,1,1,0.1\n"
-  "      units = VA,p,ms,p,kWh\n"
+  "      names = curPower,curPulseCount,intervalTime,accPulseCount,totPulseCount,totEnergy\n"
+  "      datacodes = H, H, L, L, L, L\n"
+  "      scales = 0.1 , 1, 1, 1, 1, 0.01\n"
+  "      units = VA, p, us, p, p, kWh\n"
 ;
 //- - - - - - - - - - - - JeeLabs inspired data struct - - - - - - - - - - - -
 typedef struct {
@@ -47,8 +47,8 @@ typedef struct {
   unsigned int currentPulseCount;     // current number of pulses [1]
   unsigned long currentIntervalTime;  // duration of lcurrent interval [ms]
   unsigned long accPulseCount;        // accumulated pulse count, since last reset
-  unsigned long long totalPulseCount; // total pulse count (matches meter)
-  unsigned long totalEnergy;          // electricity meter reading
+  unsigned long totalPulseCount; // total pulse count (matches meter)
+  unsigned long totalEnergy;          // electricity meter reading [1/100 kWh]
 } PayloadTX;
 PayloadTX measurementData;     // Measurement data
 //----------------------------nanoBot Settings----------------------------------
@@ -60,9 +60,25 @@ const byte min_pulsewidth =          110;  // minimum width of interrupt pulse
 //----------------------------nanoBot hard-wired connections--------------------
 const byte LEDpin =                   13;  // standard Arduino-Nano LED
 const byte DisableResetPin =           4;  // dig. I/O pin used to disable auto-reset
-const byte PulsePin =                 3;  // interrupt enabled pin: either dig pin 2 or 3
+const byte PulsePin =                  3;  // interrupt enabled pin: either dig pin 2 or 3
 //----------------------------energy meter configuration------------------------
 const int ppwh =                       2;  // 2000 pulses/kwh = 2 pulses per wh
+//----------------------------eeprom settings-----------------------------------
+const unsigned long EE_STORE_INTERVAL = 3600000ul;  // Time between config is stored in EEPROM (ms) -> each full hour
+unsigned long eeAccessMillis = 0;     // Record millis time of last EEPROM access
+const byte eeConfigOffset = 32;       // Start address in EEPROM
+const byte eeConfigMagic = 123;       // Identification if valid config is available in EEPROM
+struct Persistence {
+  byte configMagic;                   // byte to identify configuration version
+  byte nodeID;                        // nanoBot node ID
+  unsigned long totalPulseCount;      // total pulse count
+  unsigned long totalEnergy;          // electricity meter reading [1/100 kWh]
+} persistentData; //= {               // Persistent data, stored in EEPROM
+  //0,
+  //9,
+  //0,
+  //0
+//};
 //----------------------------Variables-----------------------------------------
 byte resetEnable =                     0;  // flag auto-reset enabled
 byte debugEnable =                     0;  // flag serial debug enabled
@@ -91,9 +107,7 @@ const char helpText[] PROGMEM =           // Available Serial Commands
 void setup()
 {
   nanoBot_startup();                // nanoBot startup proceadure
-  measurementData.totalPulseCount = 0;  // Reset Pulse Count
-} // end setup
-
+}
 
 //------------------------------------------------------------------------------
 // LOOP
@@ -120,7 +134,7 @@ void loop()
               measurementData.currentIntervalTime / ppwh);  // Calculate power
       measurementData.accPulseCount += pulseCount;
       measurementData.totalPulseCount += pulseCount;
-      measurementData.totalEnergy = measurementData.totalPulseCount / ppwh / 100; // [1/10 kWh]
+      measurementData.totalEnergy = measurementData.totalPulseCount / ppwh / 10; // [1/100 kWh]
       interval_start = interval_end;
       pulseCount = 0;
       sei(); // Re-enable interrupts
@@ -133,9 +147,14 @@ void loop()
       sei(); // Re-enable interrupts
     }
 
-    send_serial(); // Send emonPi data to Pi serial using struct packet structure
+    send_serial(); // Send emonPi data to Pi serial using Jeelib packet structure
 
     last_sample = now; // Record time of sample
+  }
+
+  if ((now - eeAccessMillis) > EE_STORE_INTERVAL){ // Time to store config in EEPROM?
+      eeAccessMillis = now; // Record time of access
+      save_config();
   }
 
 } // end loop
